@@ -355,6 +355,7 @@ static float offset[3] = {0.0, 0.0, 0.0};
 static bool home_all_axis = true;
 static float feedrate = 1500.0, next_feedrate, saved_feedrate;
 static long gcode_N, gcode_LastN, Stopped_gcode_LastN = 0;
+static int gcode_G0123 = 1;
 
 static bool relative_mode = false;  //Determines Absolute or Relative Coordinates
 
@@ -1368,6 +1369,7 @@ void process_commands()
     {
     case 0: // G0 -> G1
     case 1: // G1
+	  gcode_G0123 = 1;
       if(Stopped == false) {
         get_coordinates(); // For X Y Z E F
           #ifdef FWRETRACT
@@ -1388,12 +1390,14 @@ void process_commands()
       break;
 #ifndef SCARA //disable arc support
     case 2: // G2  - CW ARC
+      gcode_G0123 = 2;
       if(Stopped == false) {
         get_arc_coordinates();
         prepare_arc_move(true);
       }
       break;
     case 3: // G3  - CCW ARC
+      gcode_G0123 = 3;
       if(Stopped == false) {
         get_arc_coordinates();
         prepare_arc_move(false);
@@ -3902,21 +3906,31 @@ case 404:  //M404 Enter the nominal filament width (3mm, 1.75mm ) N<3.0> or disp
   }
 
   else if((Stopped == false) && (code_seen('X') || code_seen('Y') || code_seen('Z'))) {
-        get_coordinates(); // For X Y Z E F
-          #ifdef FWRETRACT
-            if(autoretract_enabled)
-            if( !(code_seen('X') || code_seen('Y') || code_seen('Z')) && code_seen('E')) {
-              float echange=destination[E_AXIS]-current_position[E_AXIS];
-              if((echange<-MIN_RETRACT && !retracted) || (echange>MIN_RETRACT && retracted)) { //move appears to be an attempt to retract or recover
-                  current_position[E_AXIS] = destination[E_AXIS]; //hide the slicer-generated retract/recover from calculations
-                  plan_set_e_position(current_position[E_AXIS]); //AND from the planner
-                  retract(!retracted);
-                  return;
-              }
-            }
-          #endif //FWRETRACT
-        prepare_move();
-        //ClearToSend();
+	    if(gcode_G0123 == 1){
+			get_coordinates(); // For X Y Z E F
+			  #ifdef FWRETRACT
+				if(autoretract_enabled)
+				if( !(code_seen('X') || code_seen('Y') || code_seen('Z')) && code_seen('E')) {
+				  float echange=destination[E_AXIS]-current_position[E_AXIS];
+				  if((echange<-MIN_RETRACT && !retracted) || (echange>MIN_RETRACT && retracted)) { //move appears to be an attempt to retract or recover
+					  current_position[E_AXIS] = destination[E_AXIS]; //hide the slicer-generated retract/recover from calculations
+					  plan_set_e_position(current_position[E_AXIS]); //AND from the planner
+					  retract(!retracted);
+					  return;
+				  }
+				}
+			  #endif //FWRETRACT
+			prepare_move();
+			//ClearToSend();
+		}
+		if(gcode_G0123 == 2){
+			get_arc_coordinates();
+			prepare_arc_move(true);
+		}
+		if(gcode_G0123 == 3){
+			get_arc_coordinates();
+			prepare_arc_move(false);
+		}
       }
   else
   {
